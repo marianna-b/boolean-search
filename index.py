@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 from docreader import DocumentStreamReader, parse_command_line, extract_words
 from simple9 import Simple9
 from storage import SimpleStorage, InMemoryHashTable, store
@@ -17,9 +18,11 @@ def add_doc(url):
 
 
 def get_wordid(term):
-    if words.dict.has_key(term):
-        word_count.__add__(1)
+    if not words.dict.has_key(term):
+        global word_count
+        word_count += 1
         words.add(term, word_count)
+        print term + " " + str(word_count)
         return word_count
     return words.dict.get(term)
 
@@ -27,7 +30,7 @@ def get_wordid(term):
 if __name__ == '__main__':
     cmd = parse_command_line()
     reader = DocumentStreamReader(cmd.files)
-    if cmd.code == "varbyte":
+    if cmd.code[0] == "varbyte":
         index = VarByte("docindex")
     else:
         index = Simple9("docindex")
@@ -41,6 +44,9 @@ if __name__ == '__main__':
         terms = set(extract_words(doc.text))
 
         for term in terms:
-            index.add(get_wordid(term), doc_count)
+            tmp = get_wordid(term)
+            #index.add(tmp, doc_count)
 
-    store(index.filename, index.dict)
+    #index.flush()
+    #store(index.filename, index.dict)
+    words.store()

@@ -1,8 +1,12 @@
+#!/usr/bin/env python2
+# coding=utf-8
+from simple9 import Simple9
 from storage import SimpleStorage, InMemoryHashTable
+from varbyte import VarByte
 
-url_index = SimpleStorage("url_index")
-urls = SimpleStorage("url_strings")
-words = InMemoryHashTable("words")
+url_index = SimpleStorage("url_index", "r")
+urls = SimpleStorage("url_strings", "r")
+words = InMemoryHashTable("words", "r")
 
 
 def load_url(r):
@@ -20,11 +24,25 @@ def invoke(line):
 
 
 if __name__ == '__main__':
+
+    fd = open("./docindex_", "r")
+    if fd.read(7) == "varbyte":
+        index = VarByte("docindex", "r")
+    else:
+        index = Simple9("docindex", "r")
+
+    # l = 0
+    # index.load(0)
+    # while l != -1:
+    #     l = index.get_next(0)
+    #     print l
+
     import fileinput
 
     for line in fileinput.input():
-        res = invoke(line)
-        print line
-        print len(res)
-        for r in res:
-            print load_url(r)
+        print words.get(line[:-1])
+        # res = invoke(line)
+        # print line
+        # print len(res)
+        # for r in res:
+        #     print load_url(r)

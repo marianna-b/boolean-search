@@ -36,11 +36,12 @@ de_simple = {SIMPLE_9: [28, 0x1, 1],
 
 
 class Simple9:
-    def __init__(self, filename):
+    def __init__(self, filename, mode="w+"):
         self.filename = filename
-        fd1 = open("./" + filename + "_", "w")
-        fd1.write("simple9")
-        fd1.close()
+        if mode == "w+":
+            fd1 = open("./" + filename + "_", mode)
+            fd1.write("simple9")
+            fd1.close()
         self.dict = {}
         self.waiting = {}
         self.last = {}
@@ -48,6 +49,7 @@ class Simple9:
         self.curr = {}
         self.prev = {}
         self.a = {}
+        self.mode = mode
 
     def simple9_encode(self, word):
         global en_simple
@@ -57,11 +59,15 @@ class Simple9:
             for t in en_simple:
                 n, threshold, code, shift = t[0], t[1], t[2], t[3]
 
-                if off + n <= length and max(self.a[off:off + n]) <= t[1]:
-                    tmp = self.a[off]
+                if off + n <= length and max(self.a[word][off:off + n]) <= t[1]:
+                    tmp = self.a[word][off]
                     for i in xrange(1, n):
-                        tmp |= (self.a[off + i] << (shift * i))
-                    self.dict[word].extend(struct.pack("I", tmp | t[2]))
+                        tmp |= (self.a[word][off + i] << (shift * i))
+                    tmp |= t[2]
+                    self.dict[word].append((tmp >> 24) & 0xff)
+                    self.dict[word].append((tmp >> 16) & 0xff)
+                    self.dict[word].append((tmp >> 8) & 0xff)
+                    self.dict[word].append(tmp & 0xff)
                     off += n
                     break
         self.a[word] = self.a[word][:off]
@@ -75,17 +81,19 @@ class Simple9:
             self.prev[word] = 0
             self.last[word] = -1
 
-        self.a[word].extend(doc - max(0, self.last[word]))
+        self.a[word].append(doc - max(0, self.last[word]))
         self.last[word] = doc
         if len(self.a[word]) > 27:
             self.simple9_encode(word)
 
     def simple9_decode(self, word):
+        if len(self.dict[word]) <= self.curr[word]:
+            return
         global de_simple
         t = 0
         for i in range(4):
             t <<= 8
-            t += self.dict[word][self.curr[word] + i]
+            t |= self.dict[word][self.curr[word] + i]
         self.curr[word] += 4
 
         code = t & 0xf0000000
@@ -98,10 +106,10 @@ class Simple9:
             data >>= shift
 
     def load(self, word):
-        index = SimpleStorage(self.filename + "_idx")
-        docs = SimpleStorage(self.filename)
+        index = SimpleStorage(self.filename + "_idx", self.mode)
+        docs = SimpleStorage(self.filename, self.mode)
         idx = index.get_int(2 * word)
-        l = idx.get_int(2 * word + 1)
+        l = index.get_int(2 * word + 1)
         self.tmpbuf[word] = []
         self.a[word] = []
         self.curr[word] = 0
