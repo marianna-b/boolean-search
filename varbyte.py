@@ -4,25 +4,26 @@ from storage import SimpleStorage
 class VarByteElem:
     def __init__(self, arr):
         self.arr = arr
-        self.next = 0
-        self.prev = 0
+        self.curr = 0
         self.last = -1
 
     def get(self):
-        if self.next >= len(self.arr):
+        if self.curr >= len(self.arr):
             return -1
 
         res = 0
-        while self.arr[self.next] < 128 and self.next < len(self.arr):
+        while self.arr[self.curr] < 128 and self.curr < len(self.arr):
             res <<= 7
-            res |= self.arr[self.next] & 0x7f
-            self.next += 1
+            res |= self.arr[self.curr] & 0x7f
+            self.curr += 1
 
         res <<= 7
-        res |= self.arr[self.next] & 0x7f
-        self.next += 1
-        self.prev += res
-        return self.prev
+        res |= self.arr[self.curr] & 0x7f
+        self.curr += 1
+        if self.last == -1:
+            self.last = 0
+        self.last += res
+        return self.last
 
 
 class VarByte:
@@ -71,8 +72,7 @@ class VarByte:
         self.dict.pop(word)
 
     def get_next(self, word):
-        prev = self.dict[word].get()
-        return prev
+        return self.dict[word].get()
 
     def flush(self):
         pass

@@ -1,2 +1,5 @@
 *.pyc
 *~
+!words
+!docindex*
+!url_*

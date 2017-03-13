@@ -40,7 +40,6 @@ class Simple9Item:
         self.arr = arr
         self.a = []
         self.curr = 0
-        self.prev = 0
         self.last = -1
 
     def simple9_decode(self):
@@ -68,8 +67,11 @@ class Simple9Item:
         if len(self.a) == 0:
             return -1
 
-        self.prev += self.a.pop(0)
-        return self.prev
+        if self.last == -1:
+            self.last = 0
+
+        self.last += self.a.pop(0)
+        return self.last
 
     def simple9_encode(self):
         global en_simple

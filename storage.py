@@ -2,6 +2,8 @@ import struct
 
 import mmh3
 
+import mmap
+
 REC_SIZE_INT = struct.calcsize('i')
 
 
@@ -9,6 +11,8 @@ class SimpleStorage:
     def __init__(self, filename, mode="w+"):
         self.filename = filename
         self.fd = open("./" + filename, mode)
+        if mode != "w+":
+            self.m = mmap.mmap(self.fd.fileno(), 0, access=mmap.ACCESS_READ)
         self.size = 0
 
     def add_int(self, x):
@@ -26,17 +30,16 @@ class SimpleStorage:
 
     def get_int(self, idx):
         try:
-            self.fd.seek(idx * REC_SIZE_INT)
-            tmp = self.fd.read(REC_SIZE_INT)
-            val = struct.unpack_from('i', tmp)[0]
+            self.m.seek(0)
+            val = struct.unpack_from('i', self.m, idx * REC_SIZE_INT)[0]
             return val
         except IOError:
             return -1
 
     def get_string(self, idx, len):
         try:
-            self.fd.seek(idx)
-            return self.fd.read(len)
+            self.m.seek(idx)
+            return self.m.read(len)
         except IOError:
             return -1
 
@@ -44,15 +47,14 @@ class SimpleStorage:
 HASH = 4
 ITEM = 4
 
-def bsearch_reads(fd, off, l, h, x,):
+def bsearch_reads(m, off, l, h, x,):
+    m.seek(0)
 
     while l < h:
         mid = (l + h) // 2
-        fd.seek(off + mid * (HASH + ITEM))
-        val = struct.unpack('i', fd.read(HASH))[0] 
+        val = struct.unpack_from('i', m, off + mid * (HASH + ITEM))[0]
         if x == val:
-            fd.seek(off + mid * (HASH + ITEM) + HASH)
-            return struct.unpack('i', fd.read(ITEM))[0]
+            return struct.unpack_from('i', m, off + mid * (HASH + ITEM) + HASH)[0]
         if x < val:
             h = mid
         else:
@@ -87,7 +89,7 @@ class InMemoryHashTable:
             idx += self.index.get_int(i + 1)
         len = self.index.get_int((h % n) + 1)
 
-        return bsearch_reads(self.index.fd, (n + 1) * 4, idx, idx + len, h)
+        return bsearch_reads(self.index.m, (n + 1) * 4, idx, idx + len, h)
 
     def store(self):
         self.n = len(self.dict) / 512

@@ -2,6 +2,8 @@
 # coding=utf-8
 import os
 
+import sys
+
 from simple9 import Simple9
 from storage import SimpleStorage, InMemoryHashTable
 from tree import parse_query
@@ -54,25 +56,20 @@ if __name__ == '__main__':
     else:
         index = Simple9("docindex", "r")
 
-    import fileinput
-
     length = os.path.getsize(url_index.filename) / 8
+    lines = []
+    for line in sys.stdin.readlines():
+        root = parse_query(line[:-1].decode("utf-8").lower())
 
-    l = 0
-    index.set(7000)
-    while l >= 0:
-        l = index.get_next(7000)
-        print l
-
-    for line in fileinput.input():
-        print words.get(line[:-1])
-        # root = parse_query(line[:-1])
-        # i = -1
-        # res = []
-        # while i < length:
-        #     i = root.evaluate()
-        #     res.append(i)
-        # print line
-        # print len(res)
-        # for r in res:
-        #     print load_url(r)
+        res = []
+        root.setup(index, words, length)
+        i = -1
+        while i != -2:
+            root.goto(i + 1)
+            i = root.eval()
+            if i != -2:
+                res.append(i)
+        lines.append(line[:-1])
+        lines.append(str(len(res)))
+        lines.extend(map(lambda s: load_url(s), res))
+    print "\n".join(lines)

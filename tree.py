@@ -1,6 +1,5 @@
 #!/usr/bin/env python2
 import re
-import unittest
 
 SPLIT_RGX = re.compile(r'\w+|[\(\)&\|!]', re.U)
 
@@ -25,6 +24,28 @@ class QtreeTypeInfo:
 class QTreeTerm(QtreeTypeInfo):
     def __init__(self, term):
         QtreeTypeInfo.__init__(self, term, term=True)
+        self.stream = None
+        self.curr = -1
+        self.nothing = False
+
+    def setup(self, index, words, length):
+        id = words.get(self.value)
+        if id == -1:
+            self.curr = -2
+        else:
+            self.stream = index.load(id)
+
+    def goto(self, docid):
+        if self.nothing:
+            return
+        while self.curr < docid and self.curr != -2:
+            self.curr = self.stream.get()
+            if self.curr == -1:
+                self.nothing = True
+                self.curr = -2
+
+    def eval(self):
+        return self.curr
 
 
 class QTreeOperator(QtreeTypeInfo):
@@ -33,6 +54,61 @@ class QTreeOperator(QtreeTypeInfo):
         self.priority = get_operator_prio(op)
         self.left = None
         self.right = None
+        self.docid = -1
+        self.nothing = False
+
+    def setup(self, index, words, length):
+        self.length = length
+        if self.left is not None:
+            self.left.setup(index, words, length)
+        if self.right is not None:
+            self.right.setup(index, words, length)
+
+    def goto(self, docid):
+        if self.nothing or self.docid >= docid:
+            return
+        self.docid = docid
+        if self.left is not None:
+            self.left.goto(docid)
+        if self.right is not None:
+            self.right.goto(docid)
+
+    def eval(self):
+        if self.nothing:
+            return -2
+        if self.value == '!':
+            res_right = self.right.eval()
+            while self.docid == res_right:
+                self.docid += 1
+                self.right.goto(self.docid)
+                res_right = self.right.eval()
+            if self.docid < self.length:
+                return self.docid
+            else:
+                self.nothing = True
+                return -2
+        if self.value == '&':
+            res_left = self.left.eval()
+            res_right = self.right.eval()
+            while res_right != res_left:
+                self.docid += 1 #= max(res_left, res_right)
+                self.left.goto(self.docid)
+                self.right.goto(self.docid)
+                res_left = self.left.eval()
+                res_right = self.right.eval()
+            if res_left == -2:
+                self.nothing = True
+            return res_left
+        if self.value == '|':
+            res_left = self.left.eval()
+            res_right = self.right.eval()
+            if res_left == -2 or res_right == -2:
+                self.nothing = True
+            if res_left == -2:
+                return res_right
+            if res_right == -2:
+                return res_left
+            return min(res_left, res_right)
 
 
 class QTreeBracket(QtreeTypeInfo):
