@@ -23,7 +23,6 @@ def get_wordid(term):
         global word_count
         word_count += 1
         words.add(term, word_count)
-        #print term + " " + str(word_count)
         return word_count
     return res
 

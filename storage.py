@@ -30,8 +30,8 @@ class SimpleStorage:
 
     def get_int(self, idx):
         try:
-            self.m.seek(0)
-            val = struct.unpack_from('i', self.m, idx * REC_SIZE_INT)[0]
+            self.m.seek(idx * REC_SIZE_INT)
+            val = struct.unpack('i', self.m)[0]
             return val
         except IOError:
             return -1
