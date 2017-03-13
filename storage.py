@@ -49,7 +49,7 @@ def bsearch_reads(fd, off, l, h, x,):
     while l < h:
         mid = (l + h) // 2
         fd.seek(off + mid * (HASH + ITEM))
-        val = struct.unpack('i', fd.read(HASH))[0] #  The result is a tuple even if it contains exactly one item
+        val = struct.unpack('i', fd.read(HASH))[0] 
         if x == val:
             fd.seek(off + mid * (HASH + ITEM) + HASH)
             return struct.unpack('i', fd.read(ITEM))[0]
@@ -68,9 +68,18 @@ class InMemoryHashTable:
         self.index = SimpleStorage(self.filename, mode)
 
     def add(self, word, n):
-        self.dict[word] = n
+        h = mmh3.hash(word.encode("utf-8"))
+        self.dict[h] = n
+
+    def get_from_dict(self, word):
+        h = mmh3.hash(word.encode("utf-8"))
+        if self.dict.has_key(h):
+            return self.dict[h]
+        else:
+            return None
 
     def get(self, word):
+        # h = mmh3.hash64(word)
         h = mmh3.hash(word)
         n = self.index.get_int(0)
         idx = 0
@@ -83,13 +92,12 @@ class InMemoryHashTable:
     def store(self):
         self.n = len(self.dict) / 512
         t = {}
-        for word in self.dict:
-            h = mmh3.hash(word.encode("utf-8"))
+        for h in self.dict:
             bask = h % self.n
             if not t.has_key(bask):
-                t[bask] = [(h, self.dict[word])]
+                t[bask] = [(h, self.dict[h])]
             else:
-                t[bask].append((h, self.dict[word]))
+                t[bask].append((h, self.dict[h]))
 
         self.index.add_int(self.n)
         for i in range(self.n):
@@ -100,11 +108,3 @@ class InMemoryHashTable:
             for (h, elem) in t[i]:
                 self.index.add_int(h)
                 self.index.add_int(elem)
-
-
-def store(filename, dict):
-    index = SimpleStorage(filename + "_idx")
-    docs = SimpleStorage(filename)
-    for i in range(len(dict)):
-        index.add_int(docs.next_free())
-        index.add_int(docs.add_string(dict[i]))

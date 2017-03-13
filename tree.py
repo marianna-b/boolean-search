@@ -4,6 +4,7 @@ import unittest
 
 SPLIT_RGX = re.compile(r'\w+|[\(\)&\|!]', re.U)
 
+
 class QtreeTypeInfo:
     def __init__(self, value, op=False, bracket=False, term=False, eof=False):
         self.value = value
@@ -57,7 +58,7 @@ class Parser:
             return self.parse_term()
         left = self.parse_prio(prio + 1)
         while self.current_token().is_operator \
-              and get_operator_prio(self.current_token().value) == prio:
+                and get_operator_prio(self.current_token().value) == prio:
             token = self.current_token()
             self.skip_token()
             right = self.parse_prio(prio + 1)
@@ -123,61 +124,7 @@ def tokenize_query(q):
 def build_query_tree(tokens):
     return Parser(tokens).parse()
 
+
 def parse_query(q):
     tokens = tokenize_query(q)
     return build_query_tree(tokens)
-
-
-""" Collect query tree to sting back. It needs for tests. """
-def qtree2str(root, depth=0):
-    if root.is_operator:
-        need_brackets = depth > 0 and root.value != '!'
-        res = ''
-        if need_brackets:
-            res += '('
-
-        if root.left:
-            res += qtree2str(root.left, depth+1)
-
-        if root.value == '!':
-            res += root.value
-        else:
-            res += ' ' + root.value + ' '
-
-        if root.right:
-            res += qtree2str(root.right, depth+1)
-
-        if need_brackets:
-            res += ')'
-
-        return res
-    else:
-        return root.value
-
-    
-""" Test tokenizer and parser itself """
-class QueryParserTest(unittest.TestCase):
-    @staticmethod
-    def parsed_tree(q):
-        return qtree2str(parse_query(q)).decode('utf-8')
-
-    def test_tokenizer(self):
-        self.assertEqual(['foxy', '&', 'lady'], tokenize_query('foxy & lady'))
-        self.assertEqual(['foxy', '&', 'lady', '|', 'madam'], tokenize_query('foxy & lady | madam'))
-        self.assertEqual(['foxy', '&', '(', 'lady', '|', 'madam', ')'], tokenize_query('foxy & (lady | madam)'))
-        self.assertEqual(['foxy', '&', '(', '!', 'lady', '|', 'madam', ')'], tokenize_query('foxy & (!lady | madam)'))
-
-    def test_parser(self):
-        self.assertEqual('foxy & lady', QueryParserTest.parsed_tree('foxy & lady'))
-        self.assertEqual('(foxy & lady) | madam', QueryParserTest.parsed_tree('foxy & lady | madam'))
-        self.assertEqual('foxy & (lady | madam)', QueryParserTest.parsed_tree('foxy & (lady | madam)'))
-
-    def test_right_order(self):
-        self.assertEqual('((one & two) & three) & four', QueryParserTest.parsed_tree('one & two & three & four'))
-
-    def test_neg(self):
-        self.assertEqual('foxy & !(lady | madam)', QueryParserTest.parsed_tree('foxy & !(lady | madam)'))
-
-
-suite = unittest.TestLoader().loadTestsFromTestCase(QueryParserTest)
-unittest.TextTestRunner().run(suite)

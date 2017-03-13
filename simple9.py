@@ -35,66 +35,23 @@ de_simple = {SIMPLE_9: [28, 0x1, 1],
              }
 
 
-class Simple9:
-    def __init__(self, filename, mode="w+"):
-        self.filename = filename
-        if mode == "w+":
-            fd1 = open("./" + filename + "_", mode)
-            fd1.write("simple9")
-            fd1.close()
-        self.dict = {}
-        self.waiting = {}
-        self.last = {}
-        self.tmpbuf = {}
-        self.curr = {}
-        self.prev = {}
-        self.a = {}
-        self.mode = mode
+class Simple9Item:
+    def __init__(self, arr):
+        self.arr = arr
+        self.a = []
+        self.curr = 0
+        self.prev = 0
+        self.last = -1
 
-    def simple9_encode(self, word):
-        global en_simple
-        off = 0
-        length = len(self.a[word])
-        while off < length:
-            for t in en_simple:
-                n, threshold, code, shift = t[0], t[1], t[2], t[3]
-
-                if off + n <= length and max(self.a[word][off:off + n]) <= t[1]:
-                    tmp = self.a[word][off]
-                    for i in xrange(1, n):
-                        tmp |= (self.a[word][off + i] << (shift * i))
-                    tmp |= t[2]
-                    self.dict[word].append((tmp >> 24) & 0xff)
-                    self.dict[word].append((tmp >> 16) & 0xff)
-                    self.dict[word].append((tmp >> 8) & 0xff)
-                    self.dict[word].append(tmp & 0xff)
-                    off += n
-                    break
-        self.a[word] = self.a[word][:off]
-
-    def add(self, word, doc):
-        if not self.dict.has_key(word):
-            self.dict[word] = bytearray()
-            self.tmpbuf[word] = []
-            self.a[word] = []
-            self.curr[word] = 0
-            self.prev[word] = 0
-            self.last[word] = -1
-
-        self.a[word].append(doc - max(0, self.last[word]))
-        self.last[word] = doc
-        if len(self.a[word]) > 27:
-            self.simple9_encode(word)
-
-    def simple9_decode(self, word):
-        if len(self.dict[word]) <= self.curr[word]:
+    def simple9_decode(self):
+        if len(self.arr) <= self.curr:
             return
         global de_simple
         t = 0
         for i in range(4):
             t <<= 8
-            t |= self.dict[word][self.curr[word] + i]
-        self.curr[word] += 4
+            t |= self.arr[self.curr + i]
+        self.curr += 4
 
         code = t & 0xf0000000
         data = t & 0xfffffff
@@ -102,43 +59,82 @@ class Simple9:
         n, bit, shift = info[0], info[1], info[2]
 
         for i in range(n):
-            self.tmpbuf[word].append(data & bit)
+            self.a.append(data & bit)
             data >>= shift
 
+    def get(self):
+        if len(self.a) == 0:
+            self.simple9_decode()
+        if len(self.a) == 0:
+            return -1
+
+        self.prev += self.a.pop(0)
+        return self.prev
+
+    def simple9_encode(self):
+        global en_simple
+        off = 0
+        length = len(self.a)
+        while off < length:
+            for t in en_simple:
+                n, threshold, code, shift = t[0], t[1], t[2], t[3]
+
+                if off + n <= length and max(self.a[off:off + n]) <= t[1]:
+                    tmp = self.a[off]
+                    for i in xrange(1, n):
+                        tmp |= (self.a[off + i] << (shift * i))
+                    tmp |= t[2]
+                    self.arr.append((tmp >> 24) & 0xff)
+                    self.arr.append((tmp >> 16) & 0xff)
+                    self.arr.append((tmp >> 8) & 0xff)
+                    self.arr.append(tmp & 0xff)
+                    off += n
+                    break
+        self.a = []
+
+
+class Simple9:
+    def __init__(self, filename, mode="w+"):
+        self.filename = filename
+        if mode == "w+":
+            fd1 = open("./" + filename + "_", mode)
+            fd1.write("simple9")
+            fd1.close()
+        self.mode = mode
+        self.dict = {}
+        self.index = SimpleStorage(self.filename + "_idx", self.mode)
+        self.docs = SimpleStorage(self.filename, self.mode)
+
+    def add(self, word, doc):
+        if not self.dict.has_key(word):
+            self.dict[word] = Simple9Item(bytearray())
+
+        self.dict[word].a.append(doc - max(0, self.dict[word].last))
+        self.dict[word].last = doc
+        if len(self.dict[word].a) > 27:
+            self.dict[word].simple9_encode()
+
     def load(self, word):
-        index = SimpleStorage(self.filename + "_idx", self.mode)
-        docs = SimpleStorage(self.filename, self.mode)
-        idx = index.get_int(2 * word)
-        l = index.get_int(2 * word + 1)
-        self.tmpbuf[word] = []
-        self.a[word] = []
-        self.curr[word] = 0
-        self.prev[word] = 0
-        self.last[word] = -1
-        self.dict[word] = bytearray()
-        self.dict[word].extend(docs.get_string(idx, l))
+        idx = self.index.get_int(2 * word)
+        l = self.index.get_int(2 * word + 1)
+        tmp = bytearray()
+        tmp.extend(self.docs.get_string(idx, l))
+        return Simple9Item(tmp)
+
+    def set(self, word):
+        self.dict[word] = self.load(word)
 
     def forget(self, word):
         self.dict.pop(word)
-        self.waiting.pop(word)
-        self.last.pop(word)
-        self.tmpbuf.pop(word)
-        self.curr.pop(word)
-        self.prev.pop(word)
-        self.a.pop(word)
 
     def get_next(self, word):
-        if len(self.tmpbuf[word]) == 0:
-            self.simple9_decode(word)
-
-        if len(self.tmpbuf[word]) == 0:
-            return -1
-
-        res = self.tmpbuf[word].pop(0)
-
-        self.prev[word] += res
-        return self.prev[word]
+        return self.dict[word].get()
 
     def flush(self):
-        for word in self.a:
-            self.simple9_encode(word)
+        for word in self.dict:
+            self.dict[word].simple9_encode()
+
+    def store(self):
+        for i in range(len(self.dict)):
+            self.index.add_int(self.docs.next_free())
+            self.index.add_int(self.docs.add_string(self.dict[i].arr))

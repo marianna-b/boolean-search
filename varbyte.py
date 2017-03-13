@@ -1,6 +1,28 @@
-import struct
-
 from storage import SimpleStorage
+
+
+class VarByteElem:
+    def __init__(self, arr):
+        self.arr = arr
+        self.next = 0
+        self.prev = 0
+        self.last = -1
+
+    def get(self):
+        if self.next >= len(self.arr):
+            return -1
+
+        res = 0
+        while self.arr[self.next] < 128 and self.next < len(self.arr):
+            res <<= 7
+            res |= self.arr[self.next] & 0x7f
+            self.next += 1
+
+        res <<= 7
+        res |= self.arr[self.next] & 0x7f
+        self.next += 1
+        self.prev += res
+        return self.prev
 
 
 class VarByte:
@@ -10,23 +32,19 @@ class VarByte:
             fd1 = open("./" + filename + "_", mode)
             fd1.write("varbyte")
             fd1.close()
-        self.dict = {}
-        self.last = {}
         self.mode = mode
+        self.index = SimpleStorage(self.filename + "_idx", self.mode)
+        self.docs = SimpleStorage(self.filename, self.mode)
 
-        self.next = {}
-        self.prev = {}
+        self.dict = {}
 
     def add(self, word, doc):
-
         if not self.dict.has_key(word):
-            self.dict[word] = bytearray()
-            self.next[word] = 0
-            self.prev[word] = 0
-            self.last[word] = -1
+            self.dict[word] = VarByteElem(bytearray())
+        elem = self.dict[word]
 
-        i = doc - max(0, self.last[word])
-        self.last[word] = doc
+        i = doc - max(0, elem.last)
+        elem.last = doc
 
         result = []
         while i >= 128:
@@ -35,41 +53,31 @@ class VarByte:
         result.append(i & 0x7f)
 
         for r in reversed(range(1, len(result))):
-            self.dict[word].append(result[r])
+            elem.arr.append(result[r])
 
-        self.dict[word].append(result[0] | 0x80)
+        elem.arr.append(result[0] | 0x80)
+
+    def load(self, word):
+        idx = self.index.get_int(2 * word)
+        l = self.index.get_int(2 * word + 1)
+        tmp = bytearray()
+        tmp.extend(self.docs.get_string(idx, l))
+        return VarByteElem(tmp)
+
+    def set(self, word):
+        self.dict[word] = self.load(word)
+
+    def forget(self, word):
+        self.dict.pop(word)
+
+    def get_next(self, word):
+        prev = self.dict[word].get()
+        return prev
 
     def flush(self):
         pass
 
-    def load(self, word):
-        index = SimpleStorage(self.filename + "_idx", self.mode)
-        docs = SimpleStorage(self.filename, self.mode)
-        idx = index.get_int(2 * word)
-        l = index.get_int(2 * word + 1)
-        self.prev[word] = 0
-        self.next[word] = 0
-        self.last[word] = -1
-        self.dict[word] = bytearray()
-        self.dict[word].extend(docs.get_string(idx, l))
-
-    def forget(self, word):
-        self.dict.pop(word)
-        self.last.pop(word)
-        self.prev.pop(word)
-
-    def get_next(self, word):
-        if self.next[word] >= len(self.dict[word]):
-            return -1
-
-        res = 0
-        while self.dict[word][self.next[word]] < 128 and self.next[word] < len(self.dict[word]):
-            res <<= 7
-            res |= self.dict[word][self.next[word]] & 0x7f
-            self.next[word] += 1
-
-        res <<= 7
-        res |= self.dict[word][self.next[word]] & 0x7f
-        self.next[word] += 1
-        self.prev[word] += res
-        return self.prev[word]
+    def store(self):
+        for i in range(len(self.dict)):
+            self.index.add_int(self.docs.next_free())
+            self.index.add_int(self.docs.add_string(self.dict[i].arr))

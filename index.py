@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 from docreader import DocumentStreamReader, parse_command_line, extract_words
 from simple9 import Simple9
-from storage import SimpleStorage, InMemoryHashTable, store
+from storage import SimpleStorage, InMemoryHashTable
 from varbyte import VarByte
 
 word_count = -1
@@ -18,13 +18,14 @@ def add_doc(url):
 
 
 def get_wordid(term):
-    if not words.dict.has_key(term):
+    res = words.get_from_dict(term)
+    if res is None:
         global word_count
         word_count += 1
         words.add(term, word_count)
-        print term + " " + str(word_count)
+        #print term + " " + str(word_count)
         return word_count
-    return words.dict.get(term)
+    return res
 
 
 if __name__ == '__main__':
@@ -45,8 +46,10 @@ if __name__ == '__main__':
 
         for term in terms:
             tmp = get_wordid(term)
-            #index.add(tmp, doc_count)
+            if tmp == 7000:
+                print doc_count
+            index.add(tmp, doc_count)
 
-    #index.flush()
-    #store(index.filename, index.dict)
+    index.flush()
+    index.store()
     words.store()
