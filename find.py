@@ -31,14 +31,18 @@ if __name__ == '__main__':
     for line in sys.stdin.readlines():
         root = parse_query(line[:-1].decode("utf-8").lower())
         res = []
-        root.setup(index, words, length)
+        root.setup(index, words)
         i = -1
-        while i != -2:
+        while i != -2 and i < length:
             root.goto(i + 1)
             i = root.eval()
-            if i != -2:
-                res.append(i)
+            # print i
+            if i != -2 and i < length:
+                # res.append(str(i))
+                res.append(load_url(i))
         lines.append(line[:-1])
         lines.append(str(len(res)))
-        lines.extend(map(lambda s: load_url(s), res))
+        # lines.extend(map(lambda s: str(s), res))
+        lines.extend(res)
+    lines.append("")
     sys.stdout.write("\n".join(lines))

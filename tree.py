@@ -25,27 +25,27 @@ class QTreeTerm(QtreeTypeInfo):
     def __init__(self, term):
         QtreeTypeInfo.__init__(self, term, term=True)
         self.stream = None
-        self.curr = -1
+        self.docid = -1
         self.nothing = False
 
-    def setup(self, index, words, length):
+    def setup(self, index, words):
         id = words.get(self.value)
         if id == -1:
-            self.curr = -2
+            self.docid = -2
         else:
             self.stream = index.load(id)
 
     def goto(self, docid):
         if self.nothing:
             return
-        while self.curr < docid and self.curr != -2:
-            self.curr = self.stream.get()
-            if self.curr == -1:
+        while self.docid < docid and self.docid != -2:
+            self.docid = self.stream.get()
+            if self.docid == -1:
                 self.nothing = True
-                self.curr = -2
+                self.docid = -2
 
     def eval(self):
-        return self.curr
+        return self.docid
 
 
 class QTreeOperator(QtreeTypeInfo):
@@ -55,60 +55,86 @@ class QTreeOperator(QtreeTypeInfo):
         self.left = None
         self.right = None
         self.docid = -1
-        self.nothing = False
 
-    def setup(self, index, words, length):
-        self.length = length
+    def setup(self, index, words):
         if self.left is not None:
-            self.left.setup(index, words, length)
+            self.left.setup(index, words)
         if self.right is not None:
-            self.right.setup(index, words, length)
+            self.right.setup(index, words)
 
     def goto(self, docid):
-        if self.nothing or self.docid >= docid:
+        if self.docid == -2 or self.docid >= docid:
             return
+
         self.docid = docid
-        if self.left is not None:
-            self.left.goto(docid)
-        if self.right is not None:
-            self.right.goto(docid)
+
+        if self.value == '|':
+
+            self.left.goto(self.docid)
+            self.right.goto(self.docid)
+            # print str(self.left.docid) + " " + str(self.right.docid)
+
+            if self.left.docid == -2:
+                self.docid = self.right.docid
+                return
+
+            if self.right.docid == -2:
+                self.docid = self.left.docid
+                return
+
+            self.docid = min(self.left.docid, self.right.docid)
+            return
+
+        if self.value == '&':
+            self.left.goto(self.docid)
+
+            if self.left.docid == -2:
+                self.docid = -2
+                return
+
+            self.right.goto(self.left.docid)
+
+            if self.right.docid == -2:
+                self.docid = -2
+                return
+
+            while self.left.docid != self.right.docid:
+
+                if self.left.docid < self.right.docid:
+                    self.left.goto(self.right.docid)
+                    if self.left.docid == -2:
+                        self.docid = -2
+                        return
+                else:
+                    self.right.goto(self.left.docid)
+                    if self.right.docid == -2:
+                        self.docid = -2
+                        return
+
+            self.docid = self.left.docid
+            return
+
+        if self.value == '!':
+            self.docid = docid
+
+            if self.right.docid == -2:
+                return
+
+            while self.right.docid <= self.docid:
+
+                self.right.goto(self.docid)
+
+                if self.right.docid == -2:
+                    return
+
+                if self.docid != self.right.docid:
+                    #print self.docid
+                    return
+                else:
+                    self.docid += 1
 
     def eval(self):
-        if self.nothing:
-            return -2
-        if self.value == '!':
-            res_right = self.right.eval()
-            while self.docid == res_right:
-                self.docid += 1
-                self.right.goto(self.docid)
-                res_right = self.right.eval()
-            if self.docid < self.length:
-                return self.docid
-            else:
-                self.nothing = True
-                return -2
-        if self.value == '&':
-            res_left = self.left.eval()
-            res_right = self.right.eval()
-            while res_right != res_left:
-                self.docid += 1 #= max(res_left, res_right)
-                self.left.goto(self.docid)
-                self.right.goto(self.docid)
-                res_left = self.left.eval()
-                res_right = self.right.eval()
-            if res_left == -2:
-                self.nothing = True
-            return res_left
-        if self.value == '|':
-            res_left = self.left.eval()
-            res_right = self.right.eval()
-            if res_left == -2 or res_right == -2:
-                self.nothing = True
-            if res_left == -2:
-                return res_right
-            if res_right == -2:
-                return res_left
-            return min(res_left, res_right)
+        return self.docid
 
 
 class QTreeBracket(QtreeTypeInfo):

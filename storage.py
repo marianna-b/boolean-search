@@ -30,16 +30,15 @@ class SimpleStorage:
 
     def get_int(self, idx):
         try:
-            self.m.seek(idx * REC_SIZE_INT)
-            val = struct.unpack('i', self.m)[0]
+            tmp = self.m[idx * REC_SIZE_INT : idx * REC_SIZE_INT + 4]
+            val = struct.unpack('i', tmp)[0]
             return val
         except IOError:
             return -1
 
     def get_string(self, idx, len):
         try:
-            self.m.seek(idx)
-            return self.m.read(len)
+            return self.m[idx:idx + len]
         except IOError:
             return -1
 
@@ -48,13 +47,13 @@ HASH = 4
 ITEM = 4
 
 def bsearch_reads(m, off, l, h, x,):
-    m.seek(0)
-
     while l < h:
         mid = (l + h) // 2
-        val = struct.unpack_from('i', m, off + mid * (HASH + ITEM))[0]
+        tmp = m[off + mid * (HASH + ITEM): off + mid * (HASH + ITEM) + HASH]
+        val = struct.unpack('i', tmp)[0]
         if x == val:
-            return struct.unpack_from('i', m, off + mid * (HASH + ITEM) + HASH)[0]
+            tmp = m[off + mid * (HASH + ITEM) + HASH: off + (mid + 1) * (HASH + ITEM)]
+            return struct.unpack('i', tmp)[0]
         if x < val:
             h = mid
         else:
