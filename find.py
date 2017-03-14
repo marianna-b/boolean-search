@@ -36,13 +36,10 @@ if __name__ == '__main__':
         while i != -2 and i < length:
             root.goto(i + 1)
             i = root.eval()
-            # print i
             if i != -2 and i < length:
-                # res.append(str(i))
                 res.append(load_url(i))
         lines.append(line[:-1])
         lines.append(str(len(res)))
-        # lines.extend(map(lambda s: str(s), res))
         lines.extend(res)
     lines.append("")
     sys.stdout.write("\n".join(lines))

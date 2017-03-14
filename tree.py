@@ -128,7 +128,6 @@ class QTreeOperator(QtreeTypeInfo):
                     return
 
                 if self.docid != self.right.docid:
-                    #print self.docid
                     return
                 else:
                     self.docid += 1

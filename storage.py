@@ -80,7 +80,6 @@ class InMemoryHashTable:
             return None
 
     def get(self, word):
-        # h = mmh3.hash64(word)
         h = mmh3.hash(word)
         n = self.index.get_int(0)
         idx = 0

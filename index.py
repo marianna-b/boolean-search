@@ -45,8 +45,6 @@ if __name__ == '__main__':
 
         for term in terms:
             tmp = get_wordid(term)
-            # if tmp == 7000:
-            #     print doc_count
             index.add(tmp, doc_count)
 
     index.flush()
